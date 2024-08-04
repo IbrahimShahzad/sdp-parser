@@ -11,21 +11,53 @@ use nom::{
     IResult, Parser,
 };
 use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{IpAddr, Ipv4Addr},
     str::FromStr,
 };
 
-struct Origin {
-    username: String,
-    session_id: String,
+#[derive(Debug)]
+pub struct Origin<'a> {
+    username: &'a str,
+    session_id: &'a str,
     session_version: u64,
     nettype: NetType,
     addrtype: AddrType,
     unicast_address: IpAddr,
 }
 
+impl<'a> Origin<'a> {
+    pub fn new(
+        username: &'a str,
+        session_id: &'a str,
+        session_version: u64,
+        nettype: NetType,
+        addrtype: AddrType,
+        unicast_address: IpAddr,
+    ) -> Self {
+        Self {
+            username,
+            session_id,
+            session_version,
+            nettype,
+            addrtype,
+            unicast_address,
+        }
+    }
+}
+
+impl PartialEq for Origin<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.username == other.username
+            && self.session_id == other.session_id
+            && self.session_version == other.session_version
+            && self.nettype == other.nettype
+            && self.addrtype == other.addrtype
+            && self.unicast_address == other.unicast_address
+    }
+}
+
 #[derive(Debug)]
-enum NetType {
+pub enum NetType {
     IN,
 }
 
@@ -52,7 +84,7 @@ impl FromStr for NetType {
 }
 
 #[derive(Debug)]
-enum AddrType {
+pub enum AddrType {
     IP4,
     IP6,
 }
@@ -131,7 +163,7 @@ fn parse_ip_address<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i s
 /// o=<username> <sess-id> <sess-version> <nettype> <addrtype> <unicast-address>
 /// o=jdoe 2890844526 2890842807 IN IP4
 /// see https://tools.ietf.org/html/rfc8866#section-5.2
-fn parse_origin<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, Origin, E> {
+pub fn parse_origin<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, Origin, E> {
     let (tail, _) = tag("o=").parse(input)?;
     let (tail, username) = parse_username(tail)?;
     let (tail, session_id) = parse_session_id(tail)?;
@@ -143,8 +175,8 @@ fn parse_origin<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, 
     Ok((
         tail,
         Origin {
-            username: username.to_string(),
-            session_id: session_id.to_string(),
+            username: username,
+            session_id: session_id,
             session_version,
             nettype,
             addrtype,
@@ -155,6 +187,8 @@ fn parse_origin<'i, E: ParseError<&'i str>>(input: &'i str) -> IResult<&'i str, 
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv6Addr;
+
     use super::*;
 
     #[test]
@@ -205,6 +239,22 @@ mod tests {
         assert_eq!(
             value.unicast_address,
             IpAddr::V4(Ipv4Addr::new(192, 168, 10, 1))
+        );
+    }
+
+    #[test]
+    fn test_parse_origin_with_ipv6() {
+        let (tail, value) =
+            parse_origin::<()>("o=jdoe 2890844526 2890842807 IN IP6 ::1\r\n").unwrap();
+        assert_eq!(tail, "");
+        assert_eq!(value.username, "jdoe");
+        assert_eq!(value.session_id, "2890844526");
+        assert_eq!(value.session_version, 2890842807);
+        assert_eq!(value.nettype, NetType::IN);
+        assert_eq!(value.addrtype, AddrType::IP6);
+        assert_eq!(
+            value.unicast_address,
+            IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1))
         );
     }
 }

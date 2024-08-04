@@ -15,7 +15,7 @@ pub struct Version {
 }
 
 impl Version {
-    fn new(version: u8) -> Self {
+    pub fn new(version: u8) -> Self {
         Self { version }
     }
 }
@@ -34,7 +34,13 @@ impl FromStr for Version {
     }
 }
 
-fn parse_version<
+impl PartialEq for Version {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version
+    }
+}
+
+pub fn parse_version<
     'i,
     E: ParseError<&'i str> + FromExternalError<&'i str, std::num::ParseIntError>,
 >(
